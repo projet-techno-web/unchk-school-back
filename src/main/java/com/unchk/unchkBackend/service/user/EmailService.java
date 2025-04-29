@@ -13,19 +13,17 @@ public class EmailService {
 
     public void sendResetPasswordEmail(String to, String token) {
         String subject = "Réinitialisation de votre mot de passe";
-        String resetUrl = "http://localhost:4200/reset-password?token=" + token; // frontend
+        String resetUrl = "http://localhost:4200/reset-password/" + token; // frontend
         String message = "Cliquez sur ce lien pour réinitialiser votre mot de passe :\n" + resetUrl;
-    
 
         SimpleMailMessage mail = new SimpleMailMessage();
-        mail.setFrom("contact@unchk.com"); 
+        mail.setFrom("contact@unchk.com");
         mail.setTo(to);
         mail.setSubject(subject);
-        mail.setText(message); 
+        mail.setText(message);
 
         mailSender.send(mail);
     }
-
 
     public void sendStudentCredentialsEmail(String email, String password) {
         String subject = "Vos identifiants de connexion UNCHK";
@@ -33,15 +31,16 @@ public class EmailService {
                 "Voici vos identifiants :\n" +
                 "Email : " + email + "\n" +
                 "Mot de passe : " + password + "\n\n" +
-                "Veuillez vous connecter et changer votre mot de passe dès que possible.";
+                "Veuillez vous connecter sur le lien suivant dès que possible:" + "\n\n" +
+                "http://localhost:4200/";
 
         SimpleMailMessage mail = new SimpleMailMessage();
-        mail.setFrom("contact@unchk.com"); 
+        mail.setFrom("contact@unchk.com");
         mail.setTo(email);
         mail.setSubject(subject);
-        mail.setText(body); 
+        mail.setText(body);
 
-        mailSender.send(mail);        
+        mailSender.send(mail);
 
     }
 }

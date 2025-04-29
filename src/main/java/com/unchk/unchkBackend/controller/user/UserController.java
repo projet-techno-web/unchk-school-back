@@ -63,9 +63,8 @@ public class UserController {
 
     @PostMapping("/create-student")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<String> createStudent(@RequestBody StudentCreationRequest request) {
-        String response = authService.createStudent(request);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<?> createStudent(@RequestBody StudentCreationRequest request) {
+        return authService.createStudent(request);
     }
 
 
@@ -94,21 +93,6 @@ public List<User> getAllStudents() {
         .filter(user -> user.getRole() == Role.STUDENT)
         .collect(Collectors.toList());
 }
-
-// public ResponseEntity<List<UserResponse>> getAllStudents() {
-//     List<UserResponse> response = authService.getAllStudents()
-//             .stream()
-//             .map(user -> new UserResponse(
-//                     user.getId(),
-//                     user.getFirstName(),
-//                     user.getLastName(),
-//                     user.getEmail(),
-//                     user.getRole()
-//             ))
-//             .toList();
-
-//     return ResponseEntity.ok(response);
-// }
 
 
 @GetMapping("/students/{id}")

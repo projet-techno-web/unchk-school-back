@@ -1,8 +1,6 @@
 package com.unchk.unchkBackend.controller;
 
-
 import com.unchk.unchkBackend.dto.user.LoginRequest;
-import com.unchk.unchkBackend.dto.user.LoginResponse;
 import com.unchk.unchkBackend.dto.user.RegisterRequest;
 import com.unchk.unchkBackend.dto.user.ForgotPasswordRequest;
 import com.unchk.unchkBackend.dto.user.ResetPasswordRequest;
@@ -19,33 +17,29 @@ public class AuthController {
     private AuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody RegisterRequest request) {
-        String result = authService.register(request);
-        if (result.equals("Utilisateur inscrit avec succès !")) {
-            return ResponseEntity.ok(result);
-        } else {
-            return ResponseEntity.badRequest().body(result);
-        }
+    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+        return authService.register(request);
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        return authService.login(request);
     }
+
+    // @PostMapping("/forgot-password")
+    // public ResponseEntity<?> forgotPassword(@RequestParam String email) {
+    // return authService.forgotPassword(email);
+    // }
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<String> forgotPassword(@RequestParam String email) {
-        return ResponseEntity.ok(authService.forgotPassword(email));
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        return authService.forgotPassword(request.getEmail());
     }
 
-
-
     @PostMapping("/reset-password")
-    public ResponseEntity<String> resetPassword(
-        @RequestParam("token") String token,
-        @RequestBody ResetPasswordRequest request
-    ) {
-        String response = authService.resetPassword(token, request);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<?> resetPassword(
+            @RequestParam("token") String token,
+            @RequestBody ResetPasswordRequest request) {
+        return authService.resetPassword(token, request);
     }
 }

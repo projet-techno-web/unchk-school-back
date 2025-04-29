@@ -1,13 +1,14 @@
 package com.unchk.unchkBackend.service.user;
 
-
 import java.security.SecureRandom;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -26,7 +27,6 @@ import com.unchk.unchkBackend.model.user.Role;
 import com.unchk.unchkBackend.model.user.User;
 import com.unchk.unchkBackend.repository.PasswordResetTokenRepository;
 import com.unchk.unchkBackend.repository.UserRepository;
-
 
 @Service
 public class AuthService {
@@ -61,17 +61,16 @@ public class AuthService {
         return password.toString();
     }
 
-    public String register(RegisterRequest request) {
-
+    public ResponseEntity<?> register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            return "Email déjà utilisé";
+            return ResponseEntity.badRequest().body(Map.of("message", "Email déjà utilisé"));
         }
 
         Role role;
         try {
             role = Role.valueOf(request.getRole().toUpperCase());
         } catch (IllegalArgumentException e) {
-            return "Rôle invalide (utilisez ADMIN ou STUDENT)";
+            return ResponseEntity.badRequest().body(Map.of("message", "Rôle invalide (utilisez ADMIN ou STUDENT)"));
         }
 
         User user = new User(
@@ -83,57 +82,57 @@ public class AuthService {
         );
 
         userRepository.save(user);
-        return "Utilisateur inscrit avec succès !";
+        return ResponseEntity.ok(Map.of("message", "Utilisateur inscrit avec succès !"));
     }
 
+    public ResponseEntity<?> login(LoginRequest request) {
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+            );
 
-    public LoginResponse login(LoginRequest request) {
-        // Authentifie avec Spring Security
-        Authentication authentication = authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
+            User user = userRepository.findByEmail(request.getEmail())
+                    .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
 
-        // Si auth réussie → récupérer l'utilisateur
-        User user = userRepository.findByEmail(request.getEmail())
-            .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+            String token = jwtService.generateToken(user.getEmail());
 
-        // Générer le JWT
-        String token = jwtService.generateToken(user.getEmail());
-        
-UserResponse userResponse = new UserResponse(user); // <-- tu crées un UserResponse à partir du User
-return new LoginResponse(token, userResponse);
-        // return new LoginResponse(token);
+            return ResponseEntity.ok(new LoginResponse(token, new UserResponse(user)));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body(Map.of("message", "Email ou mot de passe incorrect"));
+        }
     }
 
+    public ResponseEntity<?> forgotPassword(String email) {
+        Optional<User> optionalUser = userRepository.findByEmail(email);
+        if (optionalUser.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Aucun utilisateur avec cet email"));
+        }
 
-    public String forgotPassword(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Aucun utilisateur avec cet email"));
-
+        User user = optionalUser.get();
         String token = UUID.randomUUID().toString();
 
         PasswordResetToken resetToken = new PasswordResetToken();
         resetToken.setToken(token);
         resetToken.setUser(user);
-        resetToken.setExpirationDate(new Date(System.currentTimeMillis() + 3600 * 1000)); // 1h
+        resetToken.setExpirationDate(new Date(System.currentTimeMillis() + 3600 * 1000)); // 1 heure
 
         tokenRepository.save(resetToken);
-
         emailService.sendResetPasswordEmail(email, token);
-        return "Un lien de réinitialisation a été envoyé à votre adresse email.";
+
+        return ResponseEntity.ok(Map.of("message", "Un lien de réinitialisation a été envoyé à votre adresse email."));
     }
 
-
-    public String resetPassword(String token, ResetPasswordRequest request) {
+    public ResponseEntity<?> resetPassword(String token, ResetPasswordRequest request) {
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
-            return "Les mots de passe ne correspondent pas.";
+            return ResponseEntity.badRequest().body(Map.of("message", "Les mots de passe ne correspondent pas."));
         }
 
         PasswordResetToken resetToken = tokenRepository.findByToken(token)
-            .orElseThrow(() -> new RuntimeException("Token invalide"));
+                .orElseThrow(() -> new RuntimeException("Token invalide"));
 
         if (resetToken.getExpirationDate().before(new Date())) {
-            return "Le lien de réinitialisation a expiré.";
+            return ResponseEntity.badRequest().body(Map.of("message", "Le lien de réinitialisation a expiré."));
         }
 
         User user = resetToken.getUser();
@@ -141,68 +140,64 @@ return new LoginResponse(token, userResponse);
         userRepository.save(user);
         tokenRepository.delete(resetToken);
 
-        return "Mot de passe réinitialisé avec succès.";
+        return ResponseEntity.ok(Map.of("message", "Mot de passe réinitialisé avec succès."));
     }
 
-
-    public String createStudent(StudentCreationRequest request) {
+    public ResponseEntity<?> createStudent(StudentCreationRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            return "Email déjà utilisé";
+            return ResponseEntity.badRequest().body(Map.of("message", "Email déjà utilisé"));
         }
-    
-        // Générer un mot de passe aléatoire
+
         String generatedPassword = generateRandomPassword(9);
-    
+
         User student = new User(
-            request.getFirstName(),
-            request.getLastName(),
-            request.getEmail(),
-            passwordEncoder.encode(generatedPassword),
-            Role.STUDENT
+                request.getFirstName(),
+                request.getLastName(),
+                request.getEmail(),
+                passwordEncoder.encode(generatedPassword),
+                Role.STUDENT
         );
-    
+
         userRepository.save(student);
-    
-        // Envoyer un mail avec les identifiants
-        emailService.sendStudentCredentialsEmail(
-            request.getEmail(),
-            generatedPassword
-        );
-    
-        return "Étudiant créé et e-mail envoyé";
+
+        emailService.sendStudentCredentialsEmail(request.getEmail(), generatedPassword);
+
+        return ResponseEntity.ok(Map.of("message", "Étudiant créé et e-mail envoyé"));
     }
 
+    public ResponseEntity<?> updateStudent(Long studentId, UpdateStudentRequest request) {
+        Optional<User> optionalUser = userRepository.findById(studentId);
+        if (optionalUser.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Étudiant non trouvé."));
+        }
 
-    public void updateStudent(Long studentId, UpdateStudentRequest request) {
-    Optional<User> optionalUser = userRepository.findById(studentId);
-    if (optionalUser.isEmpty()) {
-        throw new RuntimeException("Étudiant non trouvé.");
+        User student = optionalUser.get();
+        student.setFirstName(request.getFirstName());
+        student.setLastName(request.getLastName());
+        userRepository.save(student);
+
+        return ResponseEntity.ok(Map.of("message", "Étudiant mis à jour avec succès."));
     }
 
-    User student = optionalUser.get();
-    student.setFirstName(request.getFirstName());
-    student.setLastName(request.getLastName());
-    userRepository.save(student);
-}
+    public ResponseEntity<?> deleteStudent(Long studentId) {
+        if (!userRepository.existsById(studentId)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Étudiant non trouvé."));
+        }
 
-public void deleteStudent(Long studentId) {
-    if (!userRepository.existsById(studentId)) {
-        throw new RuntimeException("Étudiant non trouvé.");
+        userRepository.deleteById(studentId);
+        return ResponseEntity.ok(Map.of("message", "Étudiant supprimé avec succès."));
     }
 
-    userRepository.deleteById(studentId);
-}
+    public List<User> getAllStudents() {
+        return userRepository.findByRole("STUDENT");
+    }
 
+    public ResponseEntity<?> getStudentById(Long id) {
+        Optional<User> optionalUser = userRepository.findById(id);
+        if (optionalUser.isEmpty() || optionalUser.get().getRole() != Role.STUDENT) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Étudiant non trouvé"));
+        }
 
-public List<User> getAllStudents() {
-    return userRepository.findByRole("STUDENT");
-}
-
-public User getStudentById(Long id) {
-    return userRepository.findById(id)
-            .filter(user -> user.getRole().equals("STUDENT"))
-            .orElseThrow(() -> new RuntimeException("Étudiant non trouvé"));
-}
-
-    
+        return ResponseEntity.ok(new UserResponse(optionalUser.get()));
+    }
 }
